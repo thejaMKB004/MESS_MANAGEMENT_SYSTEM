@@ -17,8 +17,12 @@ export default function Dashboard() {
       results[meal] = await api.todayAttendance(meal, date)
     }
     setData(results)
-    const anomalyRes = await api.anomalies(date)
-    setAnomalies(anomalyRes.anomalies)
+    try {
+      const anomalyRes = await api.anomalies(date)
+      setAnomalies(anomalyRes.anomalies)
+    } catch (e) {
+      setAnomalies([])   // kitchen staff can't see anomaly alerts
+    }
   }
 
   useEffect(() => { load() }, [date])

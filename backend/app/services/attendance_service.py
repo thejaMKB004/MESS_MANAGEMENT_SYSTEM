@@ -1,5 +1,6 @@
 from datetime import datetime, date as date_cls, timedelta
 from fastapi import HTTPException
+from ..timeutil import now_local
 from ..config import MEAL_START_TIMES, ATTENDANCE_DEADLINE_HOURS_BEFORE
 
 
@@ -7,7 +8,7 @@ def enforce_deadline(meal_date: date_cls, meal_type: str, now: datetime = None):
     """Raise if confirming/skipping this meal is past the allowed deadline.
     Deadline = meal start time minus ATTENDANCE_DEADLINE_HOURS_BEFORE, on the meal's own date.
     Confirmations for future dates are always allowed."""
-    now = now or datetime.utcnow()
+    now = now or now_local()
     if meal_date > now.date():
         return  # future day, fine
     if meal_date < now.date():

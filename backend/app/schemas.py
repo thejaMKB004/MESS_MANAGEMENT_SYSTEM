@@ -1,6 +1,9 @@
 from datetime import date, datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, EmailStr, Field
+
+
+MealLiteral = Literal["breakfast", "lunch", "dinner"]
 
 
 # ---------- Auth / Users ----------
@@ -49,7 +52,7 @@ class DietProfileUpdate(BaseModel):
 
 class MenuCreate(BaseModel):
     date: date
-    meal_type: str
+    meal_type: MealLiteral
     dishes: List[str]
 
 
@@ -71,7 +74,7 @@ class MenuOut(BaseModel):
 
 class AttendanceConfirm(BaseModel):
     date: date
-    meal_type: str
+    meal_type: MealLiteral
     status: str  # will_eat | skip
     portion: Optional[str] = None
     reason: Optional[str] = None
@@ -99,7 +102,7 @@ class CheckinRequest(BaseModel):
 
 class FeedbackCreate(BaseModel):
     date: date
-    meal_type: str
+    meal_type: MealLiteral
     dish_name: str
     rating: int = Field(ge=1, le=5)
     tags: List[str] = []
@@ -170,7 +173,7 @@ class DishIngredientCreate(BaseModel):
 
 class GuestBookingCreate(BaseModel):
     date: date
-    meal_type: str
+    meal_type: MealLiteral
     count: int = 1
 
 
@@ -186,3 +189,59 @@ class GuestBookingOut(GuestBookingCreate):
 
 class Msg(BaseModel):
     detail: str
+
+
+# ---------- Kitchen log / surplus rescue / NGOs ----------
+
+class KitchenLogUpsert(BaseModel):
+    date: date
+    meal_type: MealLiteral
+    cooked_portions: int = Field(ge=0, le=5000)
+    served_portions: int = Field(ge=0, le=5000)
+    waste_reason: Optional[Literal["over_production", "unpopular_dish", "low_turnout", "spoilage", "other"]] = None
+    notes: Optional[str] = None
+
+
+class SurplusCreate(BaseModel):
+    date: date
+    meal_type: MealLiteral
+    dish_description: str = Field(min_length=2)
+    portions: int = Field(ge=1, le=5000)
+    held_safely: bool                                   # kitchen must confirm safe holding
+    cooked_minutes_ago: int = Field(default=0, ge=0, le=600)
+
+
+class ClaimRequest(BaseModel):
+    portions: int = Field(default=1, ge=1, le=5)
+
+
+class PickupRequest(BaseModel):
+    code: str
+
+
+class OfferNgoRequest(BaseModel):
+    ngo_ids: Optional[List[int]] = None
+
+
+class NGOCreate(BaseModel):
+    name: str
+    email: EmailStr
+    contact_person: Optional[str] = None
+    phone: Optional[str] = None
+    area: Optional[str] = None
+
+
+class NGOUpdate(BaseModel):
+    active: Optional[bool] = None
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    area: Optional[str] = None
+
+
+class DonationRespond(BaseModel):
+    action: Literal["accept", "decline"]
+
+
+class DonationPickup(BaseModel):
+    portions_picked: Optional[int] = Field(default=None, ge=0)

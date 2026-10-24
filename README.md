@@ -20,7 +20,8 @@ python3 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 
-# Seed demo data (creates mess.db with sample students/menus/attendance)
+# Seed demo data (creates mess.db with sample students, menus, attendance, kitchen logs, rescues)
+# NOTE: delete backend/mess.db first if you are upgrading from an earlier version (new tables are added)
 python -m app.seed
 
 # Run the API
@@ -48,7 +49,75 @@ The seed script backfills 14 days of realistic history (menus, attendance,
 feedback, some check-ins, a few complaints) so analytics, the menu
 optimizer, and anomaly detection all have something to show immediately.
 
-## What's implemented
+
+## New in v2: kitchen log, surplus rescue, automation
+
+The first version measured waste as a proxy (*confirmed minus checked in*). The system never knew how much was
+actually cooked. v2 closes that gap and then *does something* about leftovers.
+
+### 1. Kitchen production log  (`/kitchen`)
+- **Cooking sheet:** how much to cook = confirmed students (weighted by half/regular/large portions) + guest meals
+  + an estimate for students who never answered + a safety buffer. Shows diet and allergy counts for the kitchen.
+  It's a plain formula (not ML), so the kitchen can see why. Tune it in `config.py`.
+- **Production log:** staff record portions cooked and served. Leftover is computed, with a reason
+  (over-production, unpopular dish, low turnout, spoilage).
+- **Real waste** = leftover - rescued. Shown on the Analytics page and in the weekly report.
+
+### 2. Surplus rescue  (`/rescue` for students, `/surplus` for kitchen/admin)
+```
+leftover logged -> kitchen lists it (confirms food was held safely)
+   -> last-call notification to all students (30 min window, 1 portion each, claim code)
+   -> window ends: automatically offered to active NGO partners (email link, no login needed)
+   -> first NGO to accept wins -> kitchen records the pickup
+   -> anything not collected before the safe-until time expires. Nothing unsafe stays on offer.
+```
+Rules worth knowing: food has a safe window (`SURPLUS_SAFE_HOURS`, default 3h), unclaimed holds return to the
+shelf after 30 minutes, and `wasted = listed portions - collected` is derived, never stored, so it can't drift.
+Check your college's policy and FSSAI's food-recovery guidance before using this with real food.
+
+### 3. Automation  (admin: `/automation`)
+A small background thread checks the clock every 60 seconds. Each job runs at most once per meal/day because the
+`automation_runs` table has a unique `(job, run_key)`; a restart can't send a reminder twice.
+
+| Job | When | What it does |
+|---|---|---|
+| deadline_reminder | 60 min before the deadline | In-app reminder to students who haven't answered |
+| cooking_sheet | When the deadline passes | Sends the kitchen + admin the cooking sheet |
+| anomaly_alert | After the deadline | Warns the admin about unusually high or low skip rates |
+| low_stock | After 17:00 | Checks tomorrow's menu against stock and lists shortages |
+| weekly_report | Monday 08:00 | Builds and sends last week's report |
+| surplus_maintenance | Every tick | Expires holds, offers leftovers to NGOs, expires unsafe food |
+
+The Automation page has "Run now" buttons (ignore the time rules, good for demos), a run log, and an **outbox**
+showing every message, including the NGO emails with their response links. If you set the `SMTP_*` environment
+variables the same messages are also emailed; without them they only appear in the outbox.
+
+### Settings (environment variables, all optional)
+`LOCAL_TZ_OFFSET_MINUTES` (330 = IST), `SURPLUS_SAFE_HOURS`, `SURPLUS_STUDENT_WINDOW_MINUTES`, `CLAIM_HOLD_MINUTES`,
+`MAX_PORTIONS_PER_STUDENT`, `NON_RESPONDER_EAT_RATE`, `COOKING_BUFFER_PCT`, `AUTOMATION_ENABLED`,
+`AUTOMATION_TICK_SECONDS`, `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASSWORD` / `SMTP_FROM`, `FRONTEND_BASE_URL`.
+
+### Other changes
+- **Timezone fix:** deadlines and schedules now use the mess's local time (`timeutil.py`) instead of server UTC.
+- Meal types are validated strictly (`breakfast|lunch|dinner`); bad values get a clear 422.
+- `requirements.txt` is unpinned so it installs on new Python versions without needing a Rust compiler.
+- No new dependencies were added.
+
+### Run the automated test
+```bash
+pip install -r requirements-dev.txt
+python -m tests.smoke_test      # uses a throwaway database; simulates time passing, no waiting
+```
+
+### 5-minute demo script
+1. Log in as **kitchen@mess.local** > Kitchen log > Lunch. Read the cooking sheet, then enter cooked 24, served 18.
+2. Tick the safe-food box > **Offer to students**.
+3. In another browser window, log in as **student1@mess.local** > Rescue meals > **Claim a portion** (note the code).
+4. Back as kitchen > Rescue & donations > enter the code > **Hand over**. Then **Offer to NGOs now**.
+5. As **admin@mess.local** > Automation > open the outbox, click the NGO's response link, accept it.
+6. Kitchen > Record pickup. Admin > Analytics > the **Real food waste** panel now shows what was rescued.
+
+## What's implemented (v1 features, still included)
 
 **Student app**
 - Confirm "Will eat" / "Skip" per meal with a mandatory skip reason, portion
@@ -88,5 +157,7 @@ optimizer, and anomaly detection all have something to show immediately.
   no training data needed) but noted as a possible upgrade path.
 - **Postgres:** switch `DATABASE_URL` and install `psycopg2-binary`; no
   code changes needed since SQLAlchemy abstracts the dialect.
-- Email notifications, push reminders, and file storage for PDF reports
-  (mentioned as optional in the original architecture) are not implemented.
+- Push notifications and PDF report generation are still not implemented. Emails need SMTP settings.
+- Notifications are in-app (polled every 30 s), not push. Real-time would need WebSockets or a push service.
+- NGOs respond through an emailed link; they have no accounts or login.
+- Anyone can still choose the admin role on the register page. Restrict that before real use.

@@ -7,6 +7,7 @@ from datetime import date, timedelta, datetime
 from .database import SessionLocal, Base, engine
 from . import models
 from .security import hash_password
+from .timeutil import today_local
 
 Base.metadata.create_all(bind=engine)
 db = SessionLocal()
@@ -85,7 +86,7 @@ def seed():
     db.commit()
 
     # menus + attendance + feedback for the past 14 days and next 3 days
-    today = date.today()
+    today = today_local()
     all_students = students
     for offset in range(-14, 4):
         d = today + timedelta(days=offset)
@@ -148,9 +149,75 @@ def seed():
         ))
     db.commit()
 
+
+    # ------------------------------------------------------------------
+    # NGO partners, kitchen logs and rescue history for the past 14 days
+    # (example.org addresses are reserved for documentation, so no real inbox is ever emailed)
+    # ------------------------------------------------------------------
+    import math, secrets
+    from datetime import time as dtime
+    from .config import MEAL_START_TIMES
+
+    ngos = [
+        models.NGOPartner(name="Annapurna Food Bank", contact_person="R. Menon", email="annapurna@example.org", phone="+91 90000 00001", area="City centre", active=True),
+        models.NGOPartner(name="Hope Kitchen Trust", contact_person="S. Iyer", email="hope@example.org", phone="+91 90000 00002", area="Station road", active=True),
+        models.NGOPartner(name="Seva Shelter", contact_person="A. Khan", email="seva@example.org", phone="+91 90000 00003", area="Old town", active=False),
+    ]
+    db.add_all(ngos)
+    db.commit()
+
+    used_codes = set()
+    for offset in range(-14, 0):
+        d = today + timedelta(days=offset)
+        for meal_type in ["breakfast", "lunch", "dinner"]:
+            confirmed = db.query(models.Attendance).filter(
+                models.Attendance.date == d, models.Attendance.meal_type == meal_type,
+                models.Attendance.status == "will_eat").count()
+            checked = db.query(models.MealCheckin).join(models.Attendance).filter(
+                models.Attendance.date == d, models.Attendance.meal_type == meal_type).count()
+            served = checked + random.randint(0, 3)                      # a few unconfirmed walk-ins
+            cooked = max(served, int(confirmed * random.uniform(1.0, 1.35)) + random.randint(0, 3))
+            leftover = cooked - served
+            reason = None
+            if leftover >= max(3, int(0.1 * cooked)):
+                reason = random.choice(["over_production", "over_production", "unpopular_dish", "low_turnout"])
+            db.add(models.KitchenLog(
+                date=d, meal_type=meal_type, cooked_portions=cooked, served_portions=served, leftover_portions=leftover,
+                recommended_portions=math.ceil(confirmed * 1.05), waste_reason=reason, logged_by=kitchen.id,
+            ))
+
+            if leftover >= 4 and meal_type != "breakfast":
+                menu = db.query(models.Menu).filter(models.Menu.date == d, models.Menu.meal_type == meal_type).first()
+                cooked_at = datetime.combine(d, dtime(MEAL_START_TIMES[meal_type] + 2, 0))
+                listing = models.SurplusListing(
+                    date=d, meal_type=meal_type, dish_description=", ".join(menu.dishes) if menu else "Leftover meal",
+                    portions_total=leftover, portions_remaining=0, cooked_at=cooked_at,
+                    safe_until=cooked_at + timedelta(hours=3), student_window_ends=cooked_at + timedelta(minutes=30),
+                    held_safely=True, status="closed", created_by=kitchen.id, created_at=cooked_at,
+                )
+                db.add(listing)
+                db.flush()
+                claimed = random.randint(0, min(5, leftover))
+                for student in random.sample(all_students, k=claimed):
+                    code = secrets.token_hex(3).upper()
+                    while code in used_codes:
+                        code = secrets.token_hex(3).upper()
+                    used_codes.add(code)
+                    db.add(models.SurplusClaim(
+                        listing_id=listing.id, user_id=student.id, portions=1, code=code, status="picked_up",
+                        expires_at=cooked_at + timedelta(minutes=30), created_at=cooked_at, picked_up_at=cooked_at + timedelta(minutes=10)))
+                remaining = leftover - claimed
+                if remaining > 0 and random.random() < 0.7:
+                    db.add(models.Donation(
+                        listing_id=listing.id, ngo_id=random.choice(ngos[:2]).id, portions=remaining, status="picked_up",
+                        token=secrets.token_urlsafe(8), portions_picked=remaining, offered_at=cooked_at + timedelta(minutes=30),
+                        responded_at=cooked_at + timedelta(minutes=45), picked_up_at=cooked_at + timedelta(minutes=80)))
+    db.commit()
+
     print("Seed complete.")
     print("Admin login:   admin@mess.local / admin123")
     print("Kitchen login: kitchen@mess.local / kitchen123")
+    print("NGO partners seeded: 2 active, 1 inactive (example.org addresses).")
     print("Student login: student1@mess.local ... student20@mess.local / student123")
 
 

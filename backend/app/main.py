@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -6,11 +7,23 @@ from . import models  # noqa: ensures models are registered before create_all
 from .routers import (
     auth, users, menus, attendance, feedback, complaints,
     analytics, menu_optimizer, inventory, guest_bookings, impact,
+    kitchen, surplus, ngos, donations, notifications, automation,
 )
+from .config import AUTOMATION_ENABLED
+from .services import automation_service
 
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Mess Management System", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # background jobs (reminders, cooking sheets, surplus clean-up...) run in a small thread
+    if AUTOMATION_ENABLED:
+        automation_service.start()
+    yield
+    automation_service.stop()
+
+
+app = FastAPI(title="Mess Management System", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +44,13 @@ app.include_router(menu_optimizer.router)
 app.include_router(inventory.router)
 app.include_router(guest_bookings.router)
 app.include_router(impact.router)
+app.include_router(kitchen.router)
+app.include_router(surplus.router)
+app.include_router(ngos.router)
+app.include_router(donations.router)
+app.include_router(donations.public_router)
+app.include_router(notifications.router)
+app.include_router(automation.router)
 
 
 @app.get("/")

@@ -4,6 +4,7 @@ from sqlalchemy import func
 from .. import models
 from .waste_service import compute_waste_estimate
 from .feedback_service import top_bottom_dishes
+from .kitchen_service import real_waste_summary
 
 
 def build_weekly_report(db: Session, week_start: date_cls):
@@ -44,6 +45,7 @@ def build_weekly_report(db: Session, week_start: date_cls):
         "complaints_resolved": resolved_count,
         "top_dishes": dishes["top"],
         "bottom_dishes": dishes["bottom"],
+        "kitchen": real_waste_summary(db, week_start, week_end),
         "daily_breakdown": attendance_summary,
     }
     return summary

@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from ..timeutil import now_local, today_local
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user, require_admin
@@ -58,7 +59,7 @@ def update_status(
         raise HTTPException(status_code=400, detail="Invalid status")
     complaint.status = payload.status
     if payload.status == "resolved":
-        complaint.resolved_at = datetime.utcnow()
+        complaint.resolved_at = now_local()
     db.commit()
     db.refresh(complaint)
     return complaint

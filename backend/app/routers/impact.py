@@ -36,7 +36,11 @@ def my_impact(db: Session = Depends(get_db), current_user: models.User = Depends
         else:
             break
 
+    rescued = sum(c.portions for c in db.query(models.SurplusClaim).filter(
+        models.SurplusClaim.user_id == current_user.id, models.SurplusClaim.status == "picked_up").all())
+
     return {
+        "meals_rescued": rescued,
         "total_confirmations": total_confirmed,
         "meals_skipped": meals_saved,
         "estimated_food_cost_saved_inr": est_food_saved_cost,

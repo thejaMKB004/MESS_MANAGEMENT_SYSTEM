@@ -88,6 +88,42 @@ export const api = {
 
   // impact
   myImpact: () => request('/impact/me'),
+
+  // kitchen production log
+  cookingSheet: (date, mealType) => request(`/kitchen/cooking-sheet?date=${date}&meal_type=${mealType}`),
+  kitchenLogs: (from, to) => request(`/kitchen/logs?from=${from}&to=${to}`),
+  saveKitchenLog: (payload) => request('/kitchen/logs', { method: 'PUT', body: payload }),
+  realWaste: (from, to) => request(`/analytics/real-waste?from=${from}&to=${to}`),
+
+  // surplus rescue
+  openSurplus: () => request('/surplus/open'),
+  claimSurplus: (id, portions = 1) => request(`/surplus/listings/${id}/claim`, { method: 'POST', body: { portions } }),
+  myClaims: () => request('/surplus/claims/mine'),
+  listSurplus: () => request('/surplus/listings'),
+  createSurplus: (payload) => request('/surplus/listings', { method: 'POST', body: payload }),
+  offerToNgos: (id) => request(`/surplus/listings/${id}/offer-ngo`, { method: 'POST', body: {} }),
+  closeSurplus: (id) => request(`/surplus/listings/${id}/close`, { method: 'POST' }),
+  pickupClaim: (code) => request('/surplus/claims/pickup', { method: 'POST', body: { code } }),
+
+  // NGO partners and donations
+  listNgos: () => request('/ngos'),
+  createNgo: (payload) => request('/ngos', { method: 'POST', body: payload }),
+  updateNgo: (id, payload) => request(`/ngos/${id}`, { method: 'PATCH', body: payload }),
+  listDonations: () => request('/donations'),
+  donationPickup: (id) => request(`/donations/${id}/pickup`, { method: 'POST', body: {} }),
+  publicDonation: (token) => request(`/public/donations/${token}`, { auth: false }),
+  respondDonation: (token, action) => request(`/public/donations/${token}/respond`, { method: 'POST', body: { action }, auth: false }),
+
+  // notifications
+  myNotifications: () => request('/notifications/mine'),
+  readNotification: (id) => request(`/notifications/${id}/read`, { method: 'POST' }),
+  readAllNotifications: () => request('/notifications/mine/read-all', { method: 'POST' }),
+  outbox: () => request('/notifications/outbox'),
+
+  // automation
+  automationStatus: () => request('/automation/status'),
+  automationRuns: () => request('/automation/runs'),
+  runAutomation: (job = 'all', force = false) => request(`/automation/run?job=${job}&force=${force}`, { method: 'POST' }),
 }
 
 export function setToken(token) {

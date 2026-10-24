@@ -23,6 +23,7 @@ export default function MyImpact() {
       <p className="text-ink/60 mb-6">A running total of the difference your honest meal confirmations make.</p>
       <div className="grid md:grid-cols-3 gap-4">
         <Stat label="Meals skipped (food saved)" value={impact.meals_skipped} />
+        <Stat label="Leftover meals you rescued" value={impact.meals_rescued} />
         <Stat label="Estimated cost saved" value={`₹${impact.estimated_food_cost_saved_inr}`} />
         <Stat label="Current confirmation streak" value={impact.current_streak_days} suffix=" days" />
         <Stat label="Estimated CO₂ saved" value={impact.estimated_co2_saved_kg} suffix=" kg" />

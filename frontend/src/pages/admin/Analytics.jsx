@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts'
 import { api } from '../../api/client'
 import { addDaysISO, todayISO } from '../../utils/date'
+import RealWastePanel from '../../components/RealWastePanel'
 
 export default function Analytics() {
   const [from, setFrom] = useState(addDaysISO(todayISO(), -13))
@@ -38,12 +39,14 @@ export default function Analytics() {
 
       {report && (
         <div className="grid md:grid-cols-4 gap-4">
-          <div className="card text-center"><p className="text-2xl text-forestdark">{report.total_waste_meals}</p><p className="text-xs text-ink/60 mt-1">Meals wasted (window)</p></div>
-          <div className="card text-center"><p className="text-2xl text-forestdark">₹{report.total_waste_cost_inr}</p><p className="text-xs text-ink/60 mt-1">Est. waste cost</p></div>
+          <div className="card text-center"><p className="text-2xl text-forestdark">{report.total_waste_meals}</p><p className="text-xs text-ink/60 mt-1">Confirmed but didn't eat</p></div>
+          <div className="card text-center"><p className="text-2xl text-forestdark">₹{report.total_waste_cost_inr}</p><p className="text-xs text-ink/60 mt-1">Est. cost of no-shows</p></div>
           <div className="card text-center"><p className="text-2xl text-forestdark">{report.complaints_received}</p><p className="text-xs text-ink/60 mt-1">Complaints received</p></div>
           <div className="card text-center"><p className="text-2xl text-forestdark">{report.complaints_resolved}</p><p className="text-xs text-ink/60 mt-1">Complaints resolved</p></div>
         </div>
       )}
+
+      <RealWastePanel from={from} to={to} />
 
       <div className="grid md:grid-cols-2 gap-6">
         <div className="card">

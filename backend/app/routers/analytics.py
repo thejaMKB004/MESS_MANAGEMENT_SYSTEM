@@ -1,6 +1,7 @@
 from datetime import date as date_cls, timedelta
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from ..timeutil import now_local, today_local
 from .. import models
 from ..database import get_db
 from ..deps import require_admin
@@ -70,5 +71,15 @@ def anomalies(
     db: Session = Depends(get_db),
     admin=Depends(require_admin),
 ):
-    target = for_date or date_cls.today()
+    target = for_date or today_local()
     return {"date": target, "anomalies": detect_anomalies(db, target)}
+
+
+@router.get("/real-waste")
+def real_waste(
+    from_: date_cls = Query(..., alias="from"), to: date_cls = Query(...),
+    db: Session = Depends(get_db), admin=Depends(require_admin),
+):
+    """Real waste from the kitchen production log: leftover minus what was rescued."""
+    from ..services.kitchen_service import real_waste_summary
+    return real_waste_summary(db, from_, to)

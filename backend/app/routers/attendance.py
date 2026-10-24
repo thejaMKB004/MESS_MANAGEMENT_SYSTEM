@@ -2,6 +2,7 @@ from datetime import date as date_cls, datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from ..timeutil import now_local, today_local
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user, require_admin, require_admin_or_kitchen
@@ -73,7 +74,7 @@ def today_attendance(
     db: Session = Depends(get_db),
     admin=Depends(require_admin_or_kitchen),
 ):
-    target = for_date or date_cls.today()
+    target = for_date or today_local()
     rows = db.query(models.Attendance).filter(
         models.Attendance.date == target, models.Attendance.meal_type == meal_type
     ).all()
@@ -137,4 +138,4 @@ def checkin(
     checkin_record = models.MealCheckin(attendance_id=attendance.id, method=payload.method)
     db.add(checkin_record)
     db.commit()
-    return {"detail": "Checked in", "attendance_id": attendance.id, "time": datetime.utcnow()}
+    return {"detail": "Checked in", "attendance_id": attendance.id, "time": now_local()}
