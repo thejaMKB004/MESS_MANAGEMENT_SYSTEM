@@ -7,6 +7,7 @@ const studentLinks = [
   { to: '/', label: 'Today' },
   { to: '/menu', label: 'Weekly menu' },
   { to: '/rescue', label: 'Rescue meals' },
+  { to: '/nutrition', label: 'Food log' },
   { to: '/feedback', label: 'Feedback' },
   { to: '/complaints', label: 'Complaints' },
   { to: '/guests', label: 'Guest meals' },
@@ -18,6 +19,7 @@ const kitchenLinks = [
   { to: '/', label: 'Dashboard' },
   { to: '/kitchen', label: 'Kitchen log' },
   { to: '/surplus', label: 'Rescue & donations' },
+  { to: '/nutrition-data', label: 'Nutrition data' },
 ]
 
 const adminLinks = [
@@ -25,6 +27,7 @@ const adminLinks = [
   { to: '/kitchen', label: 'Kitchen log' },
   { to: '/surplus', label: 'Rescue & donations' },
   { to: '/menu-planner', label: 'Menu planner' },
+  { to: '/nutrition-data', label: 'Nutrition data' },
   { to: '/analytics', label: 'Analytics' },
   { to: '/optimizer', label: 'Menu optimizer' },
   { to: '/inventory', label: 'Inventory' },

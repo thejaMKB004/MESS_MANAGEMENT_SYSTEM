@@ -15,7 +15,7 @@ export default function Analytics() {
     const [att, dishes, weekly] = await Promise.all([
       api.attendanceAnalytics(from, to),
       api.dishRatings(6),
-      api.weeklyReport(from),
+      api.weeklyReport(addDaysISO(to, -6)),
     ])
     setAttendance(att)
     setDishRatings(dishes)
@@ -37,6 +37,7 @@ export default function Analytics() {
         </div>
       </div>
 
+      {report && <p className="text-sm text-ink/60 -mb-4">Last 7 days up to {to}</p>}
       {report && (
         <div className="grid md:grid-cols-4 gap-4">
           <div className="card text-center"><p className="text-2xl text-forestdark">{report.total_waste_meals}</p><p className="text-xs text-ink/60 mt-1">Confirmed but didn't eat</p></div>

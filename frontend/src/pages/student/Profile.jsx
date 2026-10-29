@@ -3,7 +3,7 @@ import { useAuth } from '../../context/AuthContext'
 import { api } from '../../api/client'
 
 const DIET_OPTIONS = ['vegetarian', 'vegan', 'eggetarian', 'jain', 'no_beef', 'no_pork']
-const ALLERGY_OPTIONS = ['peanuts', 'tree_nuts', 'gluten', 'dairy', 'soy', 'shellfish']
+const ALLERGY_OPTIONS = ['peanuts', 'tree_nuts', 'gluten', 'dairy', 'egg', 'soy', 'shellfish']
 
 export default function Profile() {
   const { user, refreshUser } = useAuth()

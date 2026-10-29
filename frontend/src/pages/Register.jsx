@@ -53,14 +53,6 @@ export default function Register() {
               <input className="input" value={form.hostel} onChange={update('hostel')} />
             </div>
           </div>
-          <div>
-            <label className="label">Role</label>
-            <select className="input" value={form.role} onChange={update('role')}>
-              <option value="student">Student</option>
-              <option value="admin">Admin (mess in-charge)</option>
-              <option value="kitchen">Kitchen staff</option>
-            </select>
-          </div>
           {error && <p className="text-sm text-clay">{error}</p>}
           <button className="btn-primary w-full" disabled={loading}>{loading ? 'Creating...' : 'Create account'}</button>
         </form>

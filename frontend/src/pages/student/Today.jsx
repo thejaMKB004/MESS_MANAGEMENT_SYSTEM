@@ -12,7 +12,7 @@ const SKIP_REASONS = [
 ]
 const PORTIONS = ['half', 'regular', 'large']
 
-function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm }) {
+function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm, nutrition }) {
   const key = `${date}_${mealType}`
   const dishes = menuByKey[key]?.dishes || []
   const existing = myAttendance.find((a) => a.date === date && a.meal_type === mealType)
@@ -29,7 +29,7 @@ function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm }) {
     setReason(existing?.reason || '')
   }, [existing?.status, existing?.portion, existing?.reason])
 
-  const submit = async (newStatus) => {
+  const submit = async (newStatus, portionOverride) => {
     setError('')
     if (newStatus === 'skip' && !reason) {
       setError('Please choose a skip reason.')
@@ -41,7 +41,7 @@ function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm }) {
         date,
         meal_type: mealType,
         status: newStatus,
-        portion: newStatus === 'will_eat' ? portion : undefined,
+        portion: newStatus === 'will_eat' ? (portionOverride ?? portion) : undefined,
         reason: newStatus === 'skip' ? reason : undefined,
       })
       setStatus(newStatus)
@@ -65,6 +65,14 @@ function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm }) {
       <p className="text-sm text-ink/60 mb-3">
         {dishes.length ? dishes.join(', ') : 'Menu not published yet'}
       </p>
+      {nutrition && nutrition.dishes.length > 0 && (
+        <p className="text-xs text-ink/50 -mt-2 mb-3">
+          About {Math.round(nutrition.totals.kcal)} kcal, {Math.round(nutrition.totals.protein_g)} g protein per regular portion
+        </p>
+      )}
+      {nutrition && nutrition.warnings.length > 0 && (
+        <p className="text-xs text-clay -mt-2 mb-3">Check before eating: {nutrition.warnings.join('; ')}</p>
+      )}
 
       <div className="flex gap-2 mb-3">
         <button
@@ -86,7 +94,7 @@ function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm }) {
       {status !== 'skip' && (
         <div className="mb-2">
           <label className="label">Portion</label>
-          <select className="input" value={portion} onChange={(e) => { setPortion(e.target.value); if (status === 'will_eat') submit('will_eat') }}>
+          <select className="input" value={portion} onChange={(e) => { const p = e.target.value; setPortion(p); if (status === 'will_eat') submit('will_eat', p) }}>
             {PORTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
@@ -111,6 +119,7 @@ function MealCard({ date, mealType, menuByKey, myAttendance, onConfirm }) {
 
 export default function Today() {
   const [menuByKey, setMenuByKey] = useState({})
+  const [nutritionByKey, setNutritionByKey] = useState({})
   const [myAttendance, setMyAttendance] = useState([])
   const [days] = useState([0, 1, 2].map((n) => addDaysISO(todayISO(), n)))
   const [loading, setLoading] = useState(true)
@@ -120,10 +129,14 @@ export default function Today() {
     setLoading(true)
     const from = days[0]
     const to = days[days.length - 1]
-    const [menus, attendance] = await Promise.all([
+    const [menus, attendance, nutrition] = await Promise.all([
       api.listMenus(from, to),
       api.myAttendance(from, to),
+      api.mealNutrition(from, to).catch(() => []),
     ])
+    const nut = {}
+    nutrition.forEach((n) => { nut[`${n.date}_${n.meal_type}`] = n })
+    setNutritionByKey(nut)
     const byKey = {}
     menus.forEach((m) => { byKey[`${m.date}_${m.meal_type}`] = m })
     setMenuByKey(byKey)
@@ -157,6 +170,7 @@ export default function Today() {
                 menuByKey={menuByKey}
                 myAttendance={myAttendance}
                 onConfirm={handleConfirm}
+                nutrition={nutritionByKey[`${date}_${mealType}`]}
               />
             ))}
           </div>

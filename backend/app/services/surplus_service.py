@@ -156,7 +156,17 @@ def claim(db: Session, user, listing_id: int, portions: int, now=None) -> models
     if held + portions > MAX_PORTIONS_PER_STUDENT:
         raise HTTPException(status_code=400, detail=f"Limit is {MAX_PORTIONS_PER_STUDENT} portion(s) per student so more people get some.")
 
-    listing.portions_remaining -= portions
+    # ONE atomic statement decides who gets the portion: it only succeeds if enough are still left.
+    # (Read-check-then-write let several students win the same last portion when requests overlapped.)
+    updated = db.query(models.SurplusListing).filter(
+        models.SurplusListing.id == listing_id,
+        models.SurplusListing.status == "open_students",
+        models.SurplusListing.portions_remaining >= portions,
+    ).update({models.SurplusListing.portions_remaining: models.SurplusListing.portions_remaining - portions},
+             synchronize_session=False)
+    if updated == 0:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Not enough portions left. Someone just claimed them.")
     claim_row = models.SurplusClaim(
         listing_id=listing.id, user_id=user.id, portions=portions, code=_new_code(db),
         expires_at=min(now + timedelta(minutes=CLAIM_HOLD_MINUTES), listing.safe_until),
@@ -288,7 +298,7 @@ def maintenance(db: Session, now=None) -> dict:
     for c in db.query(models.SurplusClaim).filter(models.SurplusClaim.status == "reserved", models.SurplusClaim.expires_at < now).all():
         c.status = "expired"
         if c.listing.status in ACTIVE_LISTING:
-            c.listing.portions_remaining += c.portions       # the portion goes back on the shelf
+            c.listing.portions_remaining = models.SurplusListing.portions_remaining + c.portions   # back on the shelf (done in SQL)
         out["claims_expired"] += 1
     db.flush()
 

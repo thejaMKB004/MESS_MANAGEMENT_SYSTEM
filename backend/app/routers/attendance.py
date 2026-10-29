@@ -132,6 +132,8 @@ def checkin(
         raise HTTPException(status_code=404, detail="Attendance record not found")
     if attendance.status != models.AttendanceStatus.will_eat:
         raise HTTPException(status_code=400, detail="Cannot check in a skipped meal")
+    if attendance.date != today_local():
+        raise HTTPException(status_code=400, detail="You can only check in today's meals.")
     existing = db.query(models.MealCheckin).filter(models.MealCheckin.attendance_id == attendance.id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Already checked in")

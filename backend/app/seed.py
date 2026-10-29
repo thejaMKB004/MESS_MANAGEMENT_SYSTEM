@@ -214,6 +214,10 @@ def seed():
                         responded_at=cooked_at + timedelta(minutes=45), picked_up_at=cooked_at + timedelta(minutes=80)))
     db.commit()
 
+    from .services.nutrition_service import ensure_defaults, seed_intake
+    ensure_defaults(db)
+    seed_intake(db, all_students[:8], today)
+
     print("Seed complete.")
     print("Admin login:   admin@mess.local / admin123")
     print("Kitchen login: kitchen@mess.local / kitchen123")

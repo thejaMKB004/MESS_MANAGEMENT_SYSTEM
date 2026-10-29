@@ -58,11 +58,8 @@ def weekly_report(
     db: Session = Depends(get_db),
     admin=Depends(require_admin),
 ):
-    summary = build_weekly_report(db, week_start)
-    record = models.Report(week_start=week_start, summary=summary)
-    db.add(record)
-    db.commit()
-    return summary
+    # Read-only. (The Monday automation job is what stores weekly reports.)
+    return build_weekly_report(db, week_start)
 
 
 @router.get("/anomalies")

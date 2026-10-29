@@ -92,6 +92,44 @@ The Automation page has "Run now" buttons (ignore the time rules, good for demos
 showing every message, including the NGO emails with their response links. If you set the `SMTP_*` environment
 variables the same messages are also emailed; without them they only appear in the outbox.
 
+
+
+## New in v3: nutrition details and a calorie intake log
+
+- **Nutrition per meal:** every dish has approximate calories, protein, carbs, fat and fibre for one regular
+  portion, plus whether it is veg, egg or non-veg and which allergens it contains. Students see the calories
+  for each meal on **Today** and **Weekly menu**.
+- **Personal warnings:** a meal is flagged ("Check before eating: Upma: contains gluten") when a dish clashes
+  with the student's *own* allergy or diet profile (set on the Profile page). Nothing is inferred.
+- **Food log** (`/nutrition`, students): one click logs a mess meal ("I ate this"). The server works out the
+  food and numbers from the menu x the portion size (half 0.5, regular 1, large 1.5). Students can add
+  outside food with their own numbers, see daily totals, a 7-day chart, and set an optional target.
+- **Nutrition data** (`/nutrition-data`, kitchen and admin): edit any dish's values; dishes on the menu with
+  no data yet are flagged.
+
+Design decisions worth knowing for a viva:
+- Log entries **copy** the numbers at logging time, so correcting a dish later never rewrites history.
+- A mess meal can be logged once per day per meal; dates in the future or more than 30 days back are refused.
+- A student can only see or delete their own entries (the delete query filters by owner, so another
+  student's entry ID just returns 404).
+- Targets are optional and limited to 1200-5000 kcal. The UI shows progress neutrally.
+- The starting values for the 12 seeded dishes are **rough estimates**, not lab data. The mess should check
+  and correct them. This is not medical or dietetic advice.
+- No database reset is needed to upgrade from v2: the new tables are created on start-up and the starting
+  values are filled in for known dishes (existing edits are never overwritten).
+
+### Bug fixes (v2.1)
+Found by auditing the code and probing it; each one has an automated regression test (57 checks in total).
+- **Privilege escalation:** public sign-up used to accept `role=admin`. Now it always creates a student; only a
+  logged-in admin can create admin/kitchen accounts (`POST /auth/staff`, use the Authorize button on `/docs`).
+- **Overselling surplus:** many students claiming the last portion at once could all win it. Claiming is now a
+  single atomic database update, so exactly one wins.
+- **Portion dropdown** on the student page saved the previous value instead of the new one.
+- **Weekly report:** viewing the Analytics page wrote a new report row every time, and its top cards covered the
+  wrong dates. Viewing is now read-only and the cards show the last 7 days up to the selected end date.
+- **Counter check-in** now only accepts today's meals (an old meal could be checked in and skew waste figures).
+- **Validation:** unknown severity, portion size or status values now return a clear 422 instead of being stored.
+
 ### Settings (environment variables, all optional)
 `LOCAL_TZ_OFFSET_MINUTES` (330 = IST), `SURPLUS_SAFE_HOURS`, `SURPLUS_STUDENT_WINDOW_MINUTES`, `CLAIM_HOLD_MINUTES`,
 `MAX_PORTIONS_PER_STUDENT`, `NON_RESPONDER_EAT_RATE`, `COOKING_BUFFER_PCT`, `AUTOMATION_ENABLED`,

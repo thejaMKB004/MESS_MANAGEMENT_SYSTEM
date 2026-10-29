@@ -6,12 +6,18 @@ const MEALS = ['breakfast', 'lunch', 'dinner']
 
 export default function WeeklyMenu() {
   const [menus, setMenus] = useState([])
+  const [nutrition, setNutrition] = useState({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const from = addDaysISO(todayISO(), -3)
     const to = addDaysISO(todayISO(), 6)
     api.listMenus(from, to).then((m) => { setMenus(m); setLoading(false) })
+    api.mealNutrition(from, to).then((rows) => {
+      const byKey = {}
+      rows.forEach((r) => { byKey[`${r.date}_${r.meal_type}`] = r })
+      setNutrition(byKey)
+    }).catch(() => {})
   }, [])
 
   if (loading) return <p className="text-ink/60">Loading...</p>
@@ -35,6 +41,12 @@ export default function WeeklyMenu() {
                 <div key={meal}>
                   <p className="font-medium capitalize text-forest">{meal}</p>
                   <p className="text-ink/70">{(byDate[date][meal] || []).join(', ') || '—'}</p>
+                  {nutrition[`${date}_${meal}`]?.dishes.length > 0 && (
+                    <p className="text-xs text-ink/50">About {Math.round(nutrition[`${date}_${meal}`].totals.kcal)} kcal</p>
+                  )}
+                  {nutrition[`${date}_${meal}`]?.warnings.length > 0 && (
+                    <p className="text-xs text-clay">{nutrition[`${date}_${meal}`].warnings.join('; ')}</p>
+                  )}
                 </div>
               ))}
             </div>

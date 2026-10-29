@@ -290,3 +290,54 @@ class AutomationRun(Base):
     status = Column(String, default="ok")    # ok | error
     details = Column(JSON, nullable=True)
     ran_at = Column(DateTime, default=now_local)
+
+
+# ======================================================================
+# Nutrition: per-dish nutrition data and a personal calorie intake log
+# ======================================================================
+
+class DishNutrition(Base):
+    """Approximate nutrition for ONE regular mess portion of a dish. Editable by admin/kitchen."""
+    __tablename__ = "dish_nutrition"
+
+    id = Column(Integer, primary_key=True, index=True)
+    dish_name = Column(String, unique=True, nullable=False, index=True)   # must match the name used on menus
+    kcal = Column(Float, nullable=False)
+    protein_g = Column(Float, default=0.0)
+    carbs_g = Column(Float, default=0.0)
+    fat_g = Column(Float, default=0.0)
+    fibre_g = Column(Float, default=0.0)
+    food_type = Column(String, default="veg")       # veg | egg | non_veg
+    allergens = Column(JSON, default=list)          # same keys as the student allergy profile, e.g. ["gluten", "dairy"]
+    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    updated_at = Column(DateTime, default=now_local, onupdate=now_local)
+
+
+class IntakeEntry(Base):
+    """One line in a student's food log. Values are COPIED in at logging time, so editing a dish later
+    never rewrites someone's history."""
+    __tablename__ = "intake_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    date = Column(Date, nullable=False, index=True)
+    meal_type = Column(String, nullable=False)      # breakfast | lunch | dinner | snack
+    source = Column(String, nullable=False)         # mess | other
+    description = Column(String, nullable=False)
+    portion = Column(String, nullable=True)         # half | regular | large (mess entries)
+    kcal = Column(Float, nullable=False)
+    protein_g = Column(Float, default=0.0)
+    carbs_g = Column(Float, default=0.0)
+    fat_g = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=now_local)
+
+
+class NutritionGoal(Base):
+    """Optional personal daily targets. A separate table so the users table doesn't need a migration."""
+    __tablename__ = "nutrition_goals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
+    kcal_target = Column(Float, nullable=True)
+    protein_target_g = Column(Float, nullable=True)
+    updated_at = Column(DateTime, default=now_local, onupdate=now_local)

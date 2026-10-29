@@ -178,6 +178,126 @@ runs = client.get("/automation/runs", headers=admin).json()
 check("every run is logged", len(runs) >= 5)
 check("students can't see automation logs", client.get("/automation/runs", headers=s1).status_code == 403)
 
+
+print("Bug-fix regression checks")
+import threading
+from datetime import timedelta as _td
+
+# public sign-up can never create staff
+r = client.post("/auth/register", json={"name": "Mallory", "email": "m@x.com", "password": "pw12345", "role": "admin"})
+check("public sign-up ignores a requested admin role", r.status_code == 200 and r.json()["role"] == "student", r.text)
+staff_body = {"name": "Cook", "email": "cook@x.com", "password": "pw12345", "role": "kitchen"}
+check("a student cannot create staff accounts", client.post("/auth/staff", headers=s1, json=staff_body).status_code == 403)
+check("an admin can create a kitchen account", client.post("/auth/staff", headers=admin, json=staff_body).json()["role"] == "kitchen")
+
+# viewing the weekly report must not write to the database
+n_before = db.query(models.Report).count()
+for _ in range(3):
+    client.get(f"/analytics/weekly-report?week_start={d0 - _td(days=7)}", headers=admin)
+db.expire_all()
+check("viewing the weekly report does not store new rows", db.query(models.Report).count() == n_before)
+
+# check-in only for today's meals
+old = db.query(models.Attendance).filter(models.Attendance.date == d0 - _td(days=5), models.Attendance.status == "will_eat").first()
+for ci in db.query(models.MealCheckin).filter(models.MealCheckin.attendance_id == old.id).all():
+    db.delete(ci)
+db.commit()
+check("check-in of an old meal is refused", client.post("/attendance/checkin", headers=kitchen, json={"attendance_id": old.id}).status_code == 400)
+mine = db.query(models.Attendance).filter(models.Attendance.date == d0, models.Attendance.status == "will_eat").first()
+for ci in db.query(models.MealCheckin).filter(models.MealCheckin.attendance_id == mine.id).all():
+    db.delete(ci)
+db.commit()
+check("check-in of today's meal still works", client.post("/attendance/checkin", headers=kitchen, json={"attendance_id": mine.id}).status_code == 200)
+
+# nonsense values are rejected with a clear 422
+check("unknown complaint severity is rejected", client.post("/complaints", headers=s1, json={"category": "x", "severity": "banana", "description": "t"}).status_code == 422)
+tomorrow = str(d0 + _td(days=1))
+check("unknown portion size is rejected", client.post("/attendance/confirm", headers=s1, json={"date": tomorrow, "meal_type": "lunch", "status": "will_eat", "portion": "gigantic"}).status_code == 422)
+
+# the race: many students claim ONE portion at the same moment; exactly one may win
+for run in range(3):
+    lid = client.post("/surplus/listings", headers=kitchen, json={"date": today, "meal_type": "lunch", "dish_description": f"Race {run}", "portions": 1, "held_safely": True}).json()["id"]
+    ids = [u.id for u in db.query(models.User).filter(models.User.role == "student").limit(10).all()]
+    won, gate = [], threading.Barrier(len(ids), timeout=20)
+    def go(uid):
+        sess = SessionLocal()
+        try:
+            gate.wait()
+            surplus_service.claim(sess, sess.get(models.User, uid), lid, 1)
+            won.append(uid)
+        except Exception:
+            pass
+        finally:
+            sess.close()
+    th = [threading.Thread(target=go, args=(i,), daemon=True) for i in ids]
+    [t.start() for t in th]
+    [t.join(timeout=40) for t in th]
+    db.expire_all()
+    check(f"race {run + 1}: 10 students, 1 portion, exactly 1 winner", len(won) == 1 and db.get(models.SurplusListing, lid).portions_remaining == 0, f"winners={len(won)}")
+
+
+print("Nutrition: dish data, meal totals, warnings, intake log")
+nd = client.get("/nutrition/dishes", headers=s1).json()
+check("every seeded dish has nutrition data", nd and all(d["has_data"] for d in nd), str([d["dish_name"] for d in nd if not d["has_data"]]))
+check("a student cannot edit dish nutrition", client.put("/nutrition/dishes/Poha", headers=s1, json={"kcal": 1}).status_code == 403)
+r = client.put("/nutrition/dishes/Test Soup", headers=kitchen, json={"kcal": 150, "protein_g": 5, "allergens": ["dairy"]})
+check("kitchen can add a new dish's nutrition", r.status_code == 200 and r.json()["kcal"] == 150, r.text)
+check("unknown allergen is rejected", client.put("/nutrition/dishes/Test Soup", headers=kitchen, json={"kcal": 150, "allergens": ["glitter"]}).status_code == 422)
+
+# a meal we control: tomorrow lunch = Rice & Dal + Curd Rice
+tom = d0 + _td(days=1)
+tm = db.query(models.Menu).filter(models.Menu.date == tom, models.Menu.meal_type == "lunch").first()
+tm.dishes = ["Rice & Dal", "Curd Rice"]
+db.commit()
+meals = client.get(f"/nutrition/meals?from={tom}&to={tom}", headers=s1).json()
+lunch = next(m for m in meals if m["meal_type"] == "lunch")
+check("meal total = sum of its dishes (420 + 320 kcal)", lunch["totals"]["kcal"] == 740, str(lunch["totals"]))
+
+# warnings come from the student's own profile
+client.patch("/users/me", headers=s2, json={"allergies": ["dairy"], "diet_restrictions": []})
+w = next(m for m in client.get(f"/nutrition/meals?from={tom}&to={tom}", headers=s2).json() if m["meal_type"] == "lunch")["warnings"]
+check("dairy allergy flags Curd Rice", any("Curd Rice" in x and "dairy" in x for x in w), str(w))
+client.patch("/users/me", headers=s3, json={"diet_restrictions": ["vegetarian"], "allergies": []})
+egg_menu = db.query(models.Menu).filter(models.Menu.date == tom, models.Menu.meal_type == "dinner").first()
+egg_menu.dishes = ["Egg Curry", "Khichdi"]
+db.commit()
+w = next(m for m in client.get(f"/nutrition/meals?from={tom}&to={tom}", headers=s3).json() if m["meal_type"] == "dinner")["warnings"]
+check("vegetarian is warned about Egg Curry", any("Egg Curry" in x for x in w) and not any("Khichdi" in x for x in w), str(w))
+
+# intake log (today's breakfast)
+bm = db.query(models.Menu).filter(models.Menu.date == d0, models.Menu.meal_type == "breakfast").first()
+bm.dishes = ["Poha", "Upma"]                          # 270 + 280 = 550
+db.commit()
+for e in db.query(models.IntakeEntry).filter(models.IntakeEntry.user_id == 3, models.IntakeEntry.date == d0).all():
+    db.delete(e)
+db.commit()
+r = client.post("/nutrition/intake", headers=s1, json={"date": today, "meal_type": "breakfast", "source": "mess", "portion": "large"})
+check("logging a large mess breakfast gives 1.5 x 550 = 825 kcal", r.status_code == 200 and r.json()["kcal"] == 825, r.text)
+entry_id = r.json()["id"]
+check("logging the same meal twice is refused", client.post("/nutrition/intake", headers=s1, json={"date": today, "meal_type": "breakfast", "source": "mess"}).status_code == 400)
+check("future dates are refused", client.post("/nutrition/intake", headers=s1, json={"date": str(tom), "meal_type": "lunch", "source": "mess"}).status_code == 400)
+check("other food needs calories", client.post("/nutrition/intake", headers=s1, json={"date": today, "meal_type": "snack", "source": "other", "description": "Samosa"}).status_code == 400)
+r = client.post("/nutrition/intake", headers=s1, json={"date": today, "meal_type": "snack", "source": "other", "description": "Samosa", "kcal": 260, "fat_g": 15})
+check("other food is logged", r.status_code == 200)
+day = client.get(f"/nutrition/intake?date={today}", headers=s1).json()
+check("day total adds mess + other (825 + 260)", day["totals"]["kcal"] == 1085, str(day["totals"]))
+check("breakfast shows as already logged", next(m for m in day["mess_meals"] if m["meal_type"] == "breakfast")["already_logged"])
+
+# history keeps its values if the dish data changes later
+client.put("/nutrition/dishes/Poha", headers=kitchen, json={"kcal": 999})
+day = client.get(f"/nutrition/intake?date={today}", headers=s1).json()
+check("editing a dish later does not rewrite past entries", day["totals"]["kcal"] == 1085)
+
+# one student cannot touch another student's log
+check("another student cannot delete my entry", client.delete(f"/nutrition/intake/{entry_id}", headers=s2).status_code == 404)
+check("I can delete my own entry", client.delete(f"/nutrition/intake/{entry_id}", headers=s1).status_code == 200)
+
+# goal limits and the weekly summary
+check("a target below 1200 kcal is refused", client.put("/nutrition/goal", headers=s1, json={"kcal_target": 600}).status_code == 422)
+check("a normal target is saved", client.put("/nutrition/goal", headers=s1, json={"kcal_target": 2200}).json()["kcal_target"] == 2200)
+sm = client.get("/nutrition/summary?days=7", headers=s1).json()
+check("7-day summary has 7 days and today's 260 kcal", len(sm["days"]) == 7 and sm["days"][-1]["kcal"] == 260, str(sm["days"][-1]))
+
 db.close()
 os.remove("test_tmp.db")
 print(f"\nALL {passed} CHECKS PASSED")

@@ -75,8 +75,8 @@ class MenuOut(BaseModel):
 class AttendanceConfirm(BaseModel):
     date: date
     meal_type: MealLiteral
-    status: str  # will_eat | skip
-    portion: Optional[str] = None
+    status: Literal["will_eat", "skip"]
+    portion: Optional[Literal["half", "regular", "large"]] = None
     reason: Optional[str] = None
 
 
@@ -126,7 +126,7 @@ class FeedbackOut(BaseModel):
 
 class ComplaintCreate(BaseModel):
     category: str
-    severity: str  # low | medium | high
+    severity: Literal["low", "medium", "high"]
     description: str
 
 
@@ -245,3 +245,37 @@ class DonationRespond(BaseModel):
 
 class DonationPickup(BaseModel):
     portions_picked: Optional[int] = Field(default=None, ge=0)
+
+
+# ---------- Nutrition ----------
+
+AllergenLiteral = Literal["peanuts", "tree_nuts", "gluten", "dairy", "soy", "shellfish", "egg"]
+
+
+class DishNutritionUpsert(BaseModel):
+    kcal: float = Field(ge=0, le=3000)
+    protein_g: float = Field(default=0, ge=0, le=300)
+    carbs_g: float = Field(default=0, ge=0, le=500)
+    fat_g: float = Field(default=0, ge=0, le=300)
+    fibre_g: float = Field(default=0, ge=0, le=100)
+    food_type: Literal["veg", "egg", "non_veg"] = "veg"
+    allergens: List[AllergenLiteral] = []
+
+
+class IntakeCreate(BaseModel):
+    date: date
+    meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
+    source: Literal["mess", "other"]
+    # mess entries: the server works out the food and nutrition from the menu
+    portion: Optional[Literal["half", "regular", "large"]] = None
+    # other entries: the student describes the food and enters the numbers
+    description: Optional[str] = Field(default=None, max_length=120)
+    kcal: Optional[float] = Field(default=None, ge=0, le=5000)
+    protein_g: Optional[float] = Field(default=None, ge=0, le=300)
+    carbs_g: Optional[float] = Field(default=None, ge=0, le=800)
+    fat_g: Optional[float] = Field(default=None, ge=0, le=300)
+
+
+class GoalUpdate(BaseModel):
+    kcal_target: Optional[float] = Field(default=None, ge=1200, le=5000)
+    protein_target_g: Optional[float] = Field(default=None, ge=10, le=300)

@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import { api } from '../../api/client'
+import { useAuth } from '../../context/AuthContext'
 import { todayISO } from '../../utils/date'
 
 const MEALS = ['breakfast', 'lunch', 'dinner']
 
 export default function Dashboard() {
+  const { user } = useAuth()
   const [date, setDate] = useState(todayISO())
   const [data, setData] = useState({})
   const [anomalies, setAnomalies] = useState([])
@@ -17,6 +19,7 @@ export default function Dashboard() {
       results[meal] = await api.todayAttendance(meal, date)
     }
     setData(results)
+    if (user?.role !== 'admin') { setAnomalies([]); return }
     try {
       const anomalyRes = await api.anomalies(date)
       setAnomalies(anomalyRes.anomalies)

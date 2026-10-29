@@ -7,12 +7,18 @@ from . import models  # noqa: ensures models are registered before create_all
 from .routers import (
     auth, users, menus, attendance, feedback, complaints,
     analytics, menu_optimizer, inventory, guest_bookings, impact,
-    kitchen, surplus, ngos, donations, notifications, automation,
+    kitchen, surplus, ngos, donations, notifications, automation, nutrition,
 )
 from .config import AUTOMATION_ENABLED
 from .services import automation_service
 
 Base.metadata.create_all(bind=engine)
+
+# fill in starting nutrition estimates for known dishes (never overwrites edits)
+from .database import SessionLocal  # noqa: E402
+from .services.nutrition_service import ensure_defaults  # noqa: E402
+with SessionLocal() as _db:
+    ensure_defaults(_db)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -51,6 +57,7 @@ app.include_router(donations.router)
 app.include_router(donations.public_router)
 app.include_router(notifications.router)
 app.include_router(automation.router)
+app.include_router(nutrition.router)
 
 
 @app.get("/")

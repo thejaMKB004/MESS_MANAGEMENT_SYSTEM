@@ -16,6 +16,8 @@ import GuestBooking from './pages/student/GuestBooking'
 import MyImpact from './pages/student/MyImpact'
 import Profile from './pages/student/Profile'
 import Rescue from './pages/student/Rescue'
+import Nutrition from './pages/student/Nutrition'
+import NutritionData from './pages/kitchen/NutritionData'
 
 import Dashboard from './pages/admin/Dashboard'
 import MenuPlanner from './pages/admin/MenuPlanner'
@@ -58,6 +60,7 @@ export default function App() {
       {/* student */}
       <Route path="/menu" element={<Protected roles={STUDENT}><WeeklyMenu /></Protected>} />
       <Route path="/rescue" element={<Protected roles={STUDENT}><Rescue /></Protected>} />
+      <Route path="/nutrition" element={<Protected roles={STUDENT}><Nutrition /></Protected>} />
       <Route path="/feedback" element={<Protected roles={STUDENT}><Feedback /></Protected>} />
       <Route path="/complaints" element={<Protected roles={STUDENT}><Complaints /></Protected>} />
       <Route path="/guests" element={<Protected roles={STUDENT}><GuestBooking /></Protected>} />
@@ -67,6 +70,7 @@ export default function App() {
       {/* kitchen + admin */}
       <Route path="/kitchen" element={<Protected roles={STAFF}><KitchenLog /></Protected>} />
       <Route path="/surplus" element={<Protected roles={STAFF}><Surplus /></Protected>} />
+      <Route path="/nutrition-data" element={<Protected roles={STAFF}><NutritionData /></Protected>} />
 
       {/* admin only */}
       <Route path="/menu-planner" element={<Protected roles={ADMIN}><MenuPlanner /></Protected>} />

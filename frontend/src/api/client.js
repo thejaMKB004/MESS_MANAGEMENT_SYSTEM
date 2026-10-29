@@ -120,6 +120,16 @@ export const api = {
   readAllNotifications: () => request('/notifications/mine/read-all', { method: 'POST' }),
   outbox: () => request('/notifications/outbox'),
 
+  // nutrition
+  nutritionDishes: () => request('/nutrition/dishes'),
+  saveDishNutrition: (name, payload) => request(`/nutrition/dishes/${encodeURIComponent(name)}`, { method: 'PUT', body: payload }),
+  mealNutrition: (from, to) => request(`/nutrition/meals?from=${from}&to=${to}`),
+  intakeDay: (date) => request(`/nutrition/intake?date=${date}`),
+  addIntake: (payload) => request('/nutrition/intake', { method: 'POST', body: payload }),
+  deleteIntake: (id) => request(`/nutrition/intake/${id}`, { method: 'DELETE' }),
+  intakeSummary: (days = 7) => request(`/nutrition/summary?days=${days}`),
+  setNutritionGoal: (payload) => request('/nutrition/goal', { method: 'PUT', body: payload }),
+
   // automation
   automationStatus: () => request('/automation/status'),
   automationRuns: () => request('/automation/runs'),
